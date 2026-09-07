@@ -1,10 +1,5 @@
 <script lang="ts">
-  import {
-    exists,
-    readDir,
-    remove,
-    writeTextFile,
-  } from "@tauri-apps/plugin-fs";
+  import { exists, readDir, remove, writeTextFile } from "@tauri-apps/plugin-fs";
   import { appDataDir } from "@tauri-apps/api/path";
   import { fileNameFor, fileTypeForName, fileTypes } from "../lib/fileTypes";
   let projects = $state<any[]>([]);
@@ -14,11 +9,18 @@
   let newFileName = $state("");
   let selectedFileTypeId = $state(fileTypes[0]?.id ?? "");
   let error = $state("");
-  let { modalVisible, onClose, openDocument } = $props<{
+  let creating = $state(false);
+  let search = $state("");
+  let { modalVisible, onClose, openDocument, projectToOpen = "", onProjectViewed = () => {} } = $props<{
     modalVisible: boolean;
     onClose: () => void;
     openDocument: (fileName: string, projectName: string) => void;
+    projectToOpen?: string;
+    onProjectViewed?: (projectName: string) => void;
   }>();
+  let filteredProjects = $derived(
+    projects.filter((project) => project.name.toLowerCase().includes(search.trim().toLowerCase())),
+  );
   async function getProjects() {
     loading = true;
     try {
@@ -31,6 +33,7 @@
     }
   }
   async function loadProject(project: any) {
+    onProjectViewed(project.name);
     selectedProject = project.name;
     newFileName = "";
     error = "";
@@ -65,15 +68,22 @@
       return;
     }
     const name = fileNameFor(type, rawName);
-    const path = await appDataDir();
-    if (await exists(filePath(name, path))) {
-      error = `“${name}” already exists.`;
-      return;
+    creating = true;
+    try {
+      const path = await appDataDir();
+      if (await exists(filePath(name, path))) {
+        error = `“${name}” already exists.`;
+        return;
+      }
+      await writeTextFile(filePath(name, path), type.initialContent);
+      newFileName = "";
+      error = "";
+      await loadProject({ name: selectedProject });
+    } catch {
+      error = `Couldn’t create “${name}”. Please try again.`;
+    } finally {
+      creating = false;
     }
-    await writeTextFile(filePath(name, path), type.initialContent);
-    newFileName = "";
-    error = "";
-    await loadProject({ name: selectedProject });
   }
   async function removeFile(name: string) {
     if (!confirm(`Remove “${name}”? This cannot be undone.`)) return;
@@ -81,10 +91,16 @@
     await remove(filePath(name, path));
     await loadProject({ name: selectedProject });
   }
+  async function initialize() {
+    back();
+    search = "";
+    await getProjects();
+    const requestedProject = projects.find((project) => project.name === projectToOpen);
+    if (requestedProject) await loadProject(requestedProject);
+  }
   $effect(() => {
     if (modalVisible) {
-      back();
-      getProjects();
+      initialize();
     }
   });
 </script>
@@ -97,16 +113,10 @@
       if (event.target === event.currentTarget) onClose();
     }}
   >
-    <div
-      class="dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="browser-title"
-    >
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="browser-title">
       <div class="dialog-header">
         <div>
-          {#if selectedProject}<button class="back" onclick={back}>←</button
-            >{/if}
+          {#if selectedProject}<button class="back" onclick={back}>←</button>{/if}
           <div>
             <p class="eyebrow">YOUR LIBRARY</p>
             <h2 id="browser-title">{selectedProject || "Projects"}</h2>
@@ -123,18 +133,25 @@
           }}
         >
           <select aria-label="File type" bind:value={selectedFileTypeId}
-            >{#each fileTypes as type}<option value={type.id}
-                >{type.label}</option
-              >{/each}</select
+            >{#each fileTypes as type}<option value={type.id}>{type.label}</option>{/each}</select
           >
           <input
             bind:value={newFileName}
             aria-label="Document name"
             placeholder="Untitled document"
           />
-          <button type="submit">+ Create</button>
+          <button type="submit" disabled={creating}>{creating ? "Creating…" : "+ Create"}</button>
         </form>
         {#if error}<p class="error" role="alert">{error}</p>{/if}
+      {/if}
+      {#if !selectedProject}
+        <div class="project-search">
+          <span aria-hidden="true">⌕</span><input
+            bind:value={search}
+            placeholder="Search projects…"
+            aria-label="Search projects"
+          />
+        </div>
       {/if}
       <div class="list">
         {#if loading}<p class="helper">Loading your workspace…</p>
@@ -142,13 +159,14 @@
             <span>⌁</span><strong>No documents yet</strong>
             <p>This project is ready for its first note.</p>
           </div>
-        {:else if selectedProject}{#each files as file (file.name)}{@const type =
-              fileTypeForName(file.name)}
+        {:else if selectedProject}{#each files as file (file.name)}{@const type = fileTypeForName(
+              file.name,
+            )}
             <div class="row">
               <button class="open-file" onclick={() => chooseFile(file.name)}
-                ><span class="file-icon">{type.icon}</span><span
-                  >{file.name}</span
-                ><span class="chevron">→</span></button
+                ><span class="file-icon">{type.icon}</span><span>{file.name}</span><span
+                  class="chevron">→</span
+                ></button
               ><button
                 class="remove"
                 aria-label={`Remove ${file.name}`}
@@ -160,12 +178,12 @@
             <span>◇</span><strong>No projects yet</strong>
             <p>Create a project to begin building your library.</p>
           </div>
-        {:else}{#each projects as project}<button
-              class="row"
-              onclick={() => loadProject(project)}
-              ><span class="folder-icon">□</span><span>{project.name}</span
-              ><span class="chevron">→</span></button
-            >{/each}{/if}
+        {:else if filteredProjects.length}
+          <p class="section-label">{search ? "SEARCH RESULTS" : "ALL PROJECTS"}</p>
+          {#each filteredProjects as project}<button class="row" onclick={() => loadProject(project)}
+                ><span class="folder-icon">□</span><span>{project.name}</span><span class="chevron">→</span></button
+              >{/each}
+        {:else}<div class="blank"><strong>No matching projects</strong><p>Try a different project name.</p></div>{/if}
       </div>
       <div class="dialog-footer">
         {selectedProject
@@ -274,6 +292,30 @@
     font-size: 12px;
     font-weight: 700;
   }
+  .project-search {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 16px 18px 0;
+    padding: 0 11px;
+    border: 1px solid #3b3e42;
+    border-radius: 7px;
+    background: #111214;
+    color: #909598;
+  }
+  .project-search input {
+    width: 100%;
+    height: 40px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #ececea;
+    font-size: 13px;
+  }
+  .new-file button:disabled {
+    cursor: default;
+    opacity: 0.65;
+  }
   .error {
     margin: 8px 18px 0;
     color: #e4a38d;
@@ -284,6 +326,13 @@
     max-height: 380px;
     overflow: auto;
     padding: 10px;
+  }
+  .section-label {
+    margin: 8px 12px 6px;
+    color: #818589;
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: 0.13em;
   }
   .row {
     display: flex;
