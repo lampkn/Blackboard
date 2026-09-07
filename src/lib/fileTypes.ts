@@ -30,10 +30,7 @@ const fallbackFileType: FileType = {
 
 export function fileTypeForName(name: string): FileType {
   const normalizedName = name.toLowerCase();
-  return (
-    fileTypes.find((type) => normalizedName.endsWith(type.extension)) ??
-    fallbackFileType
-  );
+  return fileTypes.find((type) => normalizedName.endsWith(type.extension)) ?? fallbackFileType;
 }
 
 export function fileNameFor(type: FileType, baseName: string): string {
