@@ -75,7 +75,10 @@
     group.tabs.push(tab);
     group.activeId = tab.id;
     activeGroup = groupIndex;
-    loadTab(tab);
+    // Read the tab back from the reactive collection before loading it. Mutating
+    // the original object after `push` would bypass Svelte's state proxy, leaving
+    // the loading indicator visible after the file has finished opening.
+    void loadTab(group.tabs[group.tabs.length - 1]);
   }
   function selectDocument(fileName: string) {
     openInGroup(fileName);
