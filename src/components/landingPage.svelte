@@ -33,6 +33,11 @@
     recentlyViewed = [name, ...recentlyViewed.filter((project) => project !== name)].slice(0, 6);
     localStorage.setItem("blackboard.recentlyViewed", JSON.stringify(recentlyViewed));
   }
+  function forgetProject(name: string) {
+    recentlyViewed = recentlyViewed.filter((project) => project !== name);
+    localStorage.setItem("blackboard.recentlyViewed", JSON.stringify(recentlyViewed));
+    loadProjects();
+  }
   function viewRecentProject(name: string) {
     rememberProject(name);
     projectToOpen = name;
@@ -111,6 +116,7 @@
   {openDocument}
   {projectToOpen}
   onProjectViewed={rememberProject}
+  onProjectDeleted={forgetProject}
 />
 
 <style>

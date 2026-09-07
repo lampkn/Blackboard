@@ -17,6 +17,19 @@ export const fileTypes: FileType[] = [
     defaultBaseName: "Untitled document",
     initialContent: "",
   },
+  {
+    id: "drawing-document",
+    label: "Drawing",
+    extension: ".board",
+    icon: "✎",
+    defaultBaseName: "Untitled drawing",
+    initialContent: JSON.stringify({
+      version: 1,
+      width: 1200,
+      height: 800,
+      strokes: [],
+    }),
+  },
 ];
 
 const fallbackFileType: FileType = {

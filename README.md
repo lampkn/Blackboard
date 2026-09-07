@@ -6,8 +6,9 @@ Blackboard is a lightweight desktop writing workspace built with [Tauri 2](https
 
 - Create a project from the landing page.
 - Browse projects and files from the app's data directory.
-- Open a text file in a paper-style editor.
-- Save document changes back to the selected file.
+- Create text documents and editable `.board` drawing documents.
+- Draw with multiple colors, pen sizes, an eraser, undo/redo, zoom controls, and a draggable canvas resize handle.
+- Open and automatically save both writing and drawings from the same project workspace.
 - Package the application as a native desktop app through Tauri.
 
 Project data is stored in the platform-specific Tauri application data directory, under `filetree/<project-name>/`.
@@ -67,7 +68,8 @@ npm run tauri build
 ```text
 src/
 ├── components/
-│   ├── document.svelte       # Text document editor
+│   ├── document.svelte       # Tabbed document workspace
+│   ├── drawingDocument.svelte # Drawing canvas editor
 │   ├── explorermodal.svelte  # Project and file browser
 │   ├── landingPage.svelte    # Start screen
 │   └── nameModal.svelte      # Project creation dialog

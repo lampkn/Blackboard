@@ -10,13 +10,23 @@
   let selectedFileTypeId = $state(fileTypes[0]?.id ?? "");
   let error = $state("");
   let creating = $state(false);
+  let deleting = $state(false);
+  let deleteTarget = $state<{ kind: "file" | "project"; name: string } | null>(null);
   let search = $state("");
-  let { modalVisible, onClose, openDocument, projectToOpen = "", onProjectViewed = () => {} } = $props<{
+  let {
+    modalVisible,
+    onClose,
+    openDocument,
+    projectToOpen = "",
+    onProjectViewed = () => {},
+    onProjectDeleted = () => {},
+  } = $props<{
     modalVisible: boolean;
     onClose: () => void;
     openDocument: (fileName: string, projectName: string) => void;
     projectToOpen?: string;
     onProjectViewed?: (projectName: string) => void;
+    onProjectDeleted?: (projectName: string) => void;
   }>();
   let filteredProjects = $derived(
     projects.filter((project) => project.name.toLowerCase().includes(search.trim().toLowerCase())),
@@ -78,7 +88,7 @@
       await writeTextFile(filePath(name, path), type.initialContent);
       newFileName = "";
       error = "";
-      await loadProject({ name: selectedProject });
+      chooseFile(name);
     } catch {
       error = `Couldn’t create “${name}”. Please try again.`;
     } finally {
@@ -86,10 +96,44 @@
     }
   }
   async function removeFile(name: string) {
-    if (!confirm(`Remove “${name}”? This cannot be undone.`)) return;
     const path = await appDataDir();
     await remove(filePath(name, path));
     await loadProject({ name: selectedProject });
+  }
+  function requestDeleteFile(name: string) {
+    deleteTarget = { kind: "file", name };
+  }
+  function requestDeleteProject() {
+    if (selectedProject) deleteTarget = { kind: "project", name: selectedProject };
+  }
+  async function confirmDelete() {
+    const target = deleteTarget;
+    if (!target) return;
+    deleteTarget = null;
+    if (target.kind === "file") {
+      try {
+        await removeFile(target.name);
+      } catch {
+        error = `Couldn’t delete “${target.name}”. Please try again.`;
+      }
+      return;
+    }
+    await removeProject(target.name);
+  }
+  async function removeProject(projectName: string) {
+    deleting = true;
+    error = "";
+    try {
+      const path = await appDataDir();
+      await remove(`${path}/filetree/${projectName}`, { recursive: true });
+      onProjectDeleted(projectName);
+      back();
+      await getProjects();
+    } catch {
+      error = `Couldn’t delete “${projectName}”. Please try again.`;
+    } finally {
+      deleting = false;
+    }
   }
   async function initialize() {
     back();
@@ -125,6 +169,11 @@
         <button class="close" aria-label="Close" onclick={onClose}>×</button>
       </div>
       {#if selectedProject}
+        <div class="project-actions">
+          <button class="delete-project" onclick={requestDeleteProject} disabled={deleting}
+            >{deleting ? "Deleting…" : "Delete project"}</button
+          >
+        </div>
         <form
           class="new-file"
           onsubmit={(event) => {
@@ -171,7 +220,7 @@
                 class="remove"
                 aria-label={`Remove ${file.name}`}
                 title={`Remove ${file.name}`}
-                onclick={() => removeFile(file.name)}>×</button
+                onclick={() => requestDeleteFile(file.name)}>×</button
               >
             </div>{/each}
         {:else if projects.length === 0}<div class="blank">
@@ -180,10 +229,17 @@
           </div>
         {:else if filteredProjects.length}
           <p class="section-label">{search ? "SEARCH RESULTS" : "ALL PROJECTS"}</p>
-          {#each filteredProjects as project}<button class="row" onclick={() => loadProject(project)}
-                ><span class="folder-icon">□</span><span>{project.name}</span><span class="chevron">→</span></button
-              >{/each}
-        {:else}<div class="blank"><strong>No matching projects</strong><p>Try a different project name.</p></div>{/if}
+          {#each filteredProjects as project}<button
+              class="row"
+              onclick={() => loadProject(project)}
+              ><span class="folder-icon">□</span><span>{project.name}</span><span class="chevron"
+                >→</span
+              ></button
+            >{/each}
+        {:else}<div class="blank">
+            <strong>No matching projects</strong>
+            <p>Try a different project name.</p>
+          </div>{/if}
       </div>
       <div class="dialog-footer">
         {selectedProject
@@ -192,6 +248,16 @@
       </div>
     </div>
   </div>
+  {#if deleteTarget}
+    <div class="confirm-backdrop" role="presentation" onclick={(event) => { if (event.target === event.currentTarget) deleteTarget = null; }}>
+      <div class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
+        <p class="eyebrow">CONFIRM DELETION</p>
+        <h2 id="delete-title">Delete {deleteTarget.kind === "project" ? "project" : "document"}?</h2>
+        <p>{#if deleteTarget.kind === "project"}“{deleteTarget.name}” and all of its documents will be permanently deleted.{:else}“{deleteTarget.name}” will be permanently deleted.{/if}</p>
+        <div class="confirm-actions"><button class="cancel-delete" onclick={() => (deleteTarget = null)}>Cancel</button><button class="confirm-delete" onclick={confirmDelete}>Delete</button></div>
+      </div>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -268,6 +334,29 @@
     display: flex;
     gap: 8px;
     padding: 12px 18px 0;
+  }
+  .project-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding: 12px 18px 0;
+  }
+  .delete-project {
+    height: 30px;
+    border: 1px solid #653d3a;
+    border-radius: 6px;
+    background: transparent;
+    color: #e3aaa0;
+    padding: 0 10px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .delete-project:not(:disabled):hover {
+    background: #4a2928;
+    color: #ffd4cb;
+  }
+  .delete-project:disabled {
+    cursor: default;
+    opacity: 0.65;
   }
   .new-file select,
   .new-file input {
@@ -432,4 +521,13 @@
     color: #777b7e;
     font-size: 12px;
   }
+  .confirm-backdrop { position:fixed; inset:0; z-index:11; display:grid; place-items:center; padding:22px; background:rgba(5,6,7,.58); backdrop-filter:blur(5px); }
+  .confirm-dialog { width:min(100%,390px); padding:28px; border:1px solid #4a3534; border-radius:12px; background:#1e1b1b; box-shadow:0 22px 60px rgba(0,0,0,.52); }
+  .confirm-dialog h2 { font-size:25px; }
+  .confirm-dialog p:not(.eyebrow) { margin:10px 0 23px; color:#b6b1b0; font-size:13px; line-height:1.55; }
+  .confirm-actions { display:flex; justify-content:flex-end; gap:9px; }
+  .confirm-actions button { height:38px; padding:0 14px; border-radius:7px; font-size:13px; font-weight:700; }
+  .cancel-delete { border:1px solid #454142; background:transparent; color:#d6d3d1; }
+  .confirm-delete { border:1px solid #7c4740; background:#9d554a; color:#fff3f0; }
+  .confirm-delete:hover { background:#b65f52; }
 </style>
