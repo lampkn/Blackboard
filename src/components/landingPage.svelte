@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { readDir } from "@tauri-apps/plugin-fs";
   import { appDataDir } from "@tauri-apps/api/path";
   import NameModal from "./nameModal.svelte";
@@ -9,8 +10,9 @@
   }>();
   let modalOpen = $state(false);
   let explorerModal = $state(false);
+  let projectToOpen = $state("");
   let projects = $state<any[]>([]);
-  let projectCreated = $state("");
+  let recentlyViewed = $state<string[]>([]);
 
   async function loadProjects() {
     try {
@@ -24,10 +26,30 @@
     modalOpen = false;
   }
   function handleProjectCreated(name: string) {
-    projectCreated = name;
     modalOpen = false;
     loadProjects();
   }
+  function rememberProject(name: string) {
+    recentlyViewed = [name, ...recentlyViewed.filter((project) => project !== name)].slice(0, 6);
+    localStorage.setItem("blackboard.recentlyViewed", JSON.stringify(recentlyViewed));
+  }
+  function viewRecentProject(name: string) {
+    rememberProject(name);
+    projectToOpen = name;
+    explorerModal = true;
+  }
+  function browseProjects() {
+    projectToOpen = "";
+    explorerModal = true;
+  }
+  onMount(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("blackboard.recentlyViewed") ?? "[]");
+      if (Array.isArray(saved)) recentlyViewed = saved.filter((name): name is string => typeof name === "string");
+    } catch {
+      recentlyViewed = [];
+    }
+  });
   $effect(() => {
     loadProjects();
   });
@@ -39,20 +61,18 @@
       <span class="mark">B</span><span>Blackboard</span>
     </div>
     <div class="project-header">
-      <span>PROJECTS</span><button
-        aria-label="New project"
-        onclick={() => (modalOpen = true)}>+</button
+      <span>PROJECTS</span><button aria-label="New project" onclick={() => (modalOpen = true)}
+        >+</button
       >
     </div>
     <nav class="project-list" aria-label="Projects">
       {#if projects.length === 0}<p class="no-projects">No projects yet</p>
       {:else}{#each projects as project}<button
             class="project-item"
-            onclick={() => (explorerModal = true)}
-            ><span>□</span>{project.name}</button
+            onclick={() => viewRecentProject(project.name)}><span>□</span>{project.name}</button
           >{/each}{/if}
     </nav>
-    <button class="browse-link" onclick={() => (explorerModal = true)}
+    <button class="browse-link" onclick={browseProjects}
       ><span>⌕</span> Browse projects</button
     >
   </aside>
@@ -66,33 +86,31 @@
       <div class="actions">
         <button class="new-project" onclick={() => (modalOpen = true)}
           ><span>+</span> New project</button
-        ><button class="browse-projects" onclick={() => (explorerModal = true)}
+        ><button class="browse-projects" onclick={browseProjects}
           >Browse projects <span>→</span></button
         >
       </div>
       <div class="recent">
-        <p>RECENTLY CREATED</p>
-        {#if projectCreated}<div class="recent-item">
-            <span>□</span><strong>{projectCreated}</strong><span
-              class="just-now">just now</span
-            >
-          </div>{:else}<span class="empty-recent"
-            >Your new projects will appear here.</span
-          >{/if}
+        <p>RECENTLY VIEWED</p>
+        {#if recentlyViewed.length}
+          {#each recentlyViewed as project}
+            <button class="recent-item" onclick={() => viewRecentProject(project)}>
+              <span>□</span><strong>{project}</strong><span class="open-recent">Open →</span>
+            </button>
+          {/each}
+        {:else}<span class="empty-recent">Projects you open will appear here.</span>{/if}
       </div>
     </section>
   </main>
 </div>
 
-<NameModal
-  modalVisible={modalOpen}
-  onClose={closeModal}
-  onCreated={handleProjectCreated}
-/>
+<NameModal modalVisible={modalOpen} onClose={closeModal} onCreated={handleProjectCreated} />
 <Explorermodal
   modalVisible={explorerModal}
   onClose={() => (explorerModal = false)}
   {openDocument}
+  {projectToOpen}
+  onProjectViewed={rememberProject}
 />
 
 <style>
@@ -215,12 +233,7 @@
     flex: 1;
     place-items: center;
     padding: 28px;
-    background: radial-gradient(
-      ellipse at 50% 44%,
-      #202426 0%,
-      #151719 54%,
-      #121315 100%
-    );
+    background: radial-gradient(ellipse at 50% 44%, #202426 0%, #151719 54%, #121315 100%);
   }
   .island {
     width: min(100%, 480px);
@@ -301,19 +314,25 @@
   .recent-item {
     display: flex;
     align-items: center;
+    width: 100%;
     gap: 8px;
     min-height: 36px;
     padding: 0 10px;
+    border: 0;
     border-radius: 7px;
     background: #222528;
     color: #d9dad7;
+    text-align: left;
     font-size: 12px;
+  }
+  .recent-item:hover {
+    background: #2a2e30;
   }
   .recent-item > span:first-child {
     color: #91b899;
     font-size: 15px;
   }
-  .just-now {
+  .open-recent {
     margin-left: auto;
     color: #797d80;
     font-size: 11px;
