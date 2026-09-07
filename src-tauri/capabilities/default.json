@@ -40,6 +40,20 @@
         "$APPDATA/*",
         "$APPDATA/**"
       ]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [
+        "$APPDATA/*",
+        "$APPDATA/**"
+      ]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [
+        "$APPDATA/*",
+        "$APPDATA/**"
+      ]
     }
 
   ]

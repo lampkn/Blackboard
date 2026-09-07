@@ -2,9 +2,7 @@
   import LandingPage from "../components/landingPage.svelte";
   import Document from "../components/document.svelte";
 
-  let activeDocument = $state<{ fileName: string; projectName: string } | null>(
-    null,
-  );
+  let activeDocument = $state<{ fileName: string; projectName: string } | null>(null);
 
   function openDocument(fileName: string, projectName: string) {
     activeDocument = { fileName, projectName };

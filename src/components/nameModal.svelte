@@ -25,18 +25,11 @@
       if (event.target === event.currentTarget) onClose();
     }}
   >
-    <div
-      class="dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="new-project-title"
-    >
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="new-project-title">
       <button class="close" aria-label="Close" onclick={onClose}>×</button>
       <p class="eyebrow">NEW PROJECT</p>
       <h2 id="new-project-title">Name your space</h2>
-      <p class="copy">
-        Give this collection of writing a clear, memorable name.
-      </p>
+      <p class="copy">Give this collection of writing a clear, memorable name.</p>
       <form
         onsubmit={(event) => {
           event.preventDefault();
@@ -49,9 +42,9 @@
           placeholder="e.g. Autumn essays"
         />
         <div class="controls">
-          <button type="button" class="cancel" onclick={onClose}>Cancel</button
-          ><button type="submit" class="create"
-            >Create project <span>→</span></button
+          <button type="button" class="cancel" onclick={onClose}>Cancel</button><button
+            type="submit"
+            class="create">Create project <span>→</span></button
           >
         </div>
       </form>
