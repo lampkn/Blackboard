@@ -14,6 +14,9 @@
     height: number;
     strokes: Stroke[];
   };
+  type HistoryAction =
+    | { type: "stroke"; stroke: Stroke }
+    | { type: "clear"; strokes: Stroke[] };
   type ResizeState = {
     pointerId: number;
     startX: number;
@@ -37,7 +40,8 @@
   let canvas: HTMLCanvasElement;
   let viewport: HTMLDivElement;
   let strokes = $state<Stroke[]>([]);
-  let redoStack = $state<Stroke[]>([]);
+  let undoStack = $state<HistoryAction[]>([]);
+  let redoStack = $state<HistoryAction[]>([]);
   let activeStroke: Stroke | null = null;
   let tool = $state<"pen" | "eraser">("pen");
   let color = $state(colors[0]);
@@ -165,6 +169,7 @@
       points: [pointFor(event)],
     };
     strokes.push(stroke);
+    undoStack.push({ type: "stroke", stroke });
     activeStroke = stroke;
     redoStack = [];
     const ctx = context();
@@ -201,24 +206,28 @@
   }
 
   function undo() {
-    const stroke = strokes.pop();
-    if (!stroke) return;
-    redoStack.push(stroke);
+    const action = undoStack.pop();
+    if (!action) return;
+    if (action.type === "stroke") strokes.pop();
+    else strokes = action.strokes;
+    redoStack.push(action);
     redraw();
     emitChange();
   }
 
   function redo() {
-    const stroke = redoStack.pop();
-    if (!stroke) return;
-    strokes.push(stroke);
+    const action = redoStack.pop();
+    if (!action) return;
+    if (action.type === "stroke") strokes.push(action.stroke);
+    else strokes = [];
+    undoStack.push(action);
     redraw();
     emitChange();
   }
 
   function clearDrawing() {
     if (!strokes.length) return;
-    if (!confirm("Clear this drawing? This cannot be undone.")) return;
+    undoStack.push({ type: "clear", strokes: [...strokes] });
     redoStack = [];
     strokes = [];
     redraw();
@@ -343,6 +352,7 @@
       strokes = drawing.strokes;
       documentWidth = drawing.width;
       documentHeight = drawing.height;
+      undoStack = [];
       redoStack = [];
       lastLoadedValue = value;
       redraw();
@@ -393,7 +403,7 @@
     </div>
     <span class="document-dimensions" title="Canvas size">{documentWidth} × {documentHeight}</span>
     <div class="history">
-      <button onclick={undo} disabled={!strokes.length} aria-label="Undo" title="Undo">↶</button>
+      <button onclick={undo} disabled={!undoStack.length} aria-label="Undo" title="Undo">↶</button>
       <button onclick={redo} disabled={!redoStack.length} aria-label="Redo" title="Redo">↷</button>
       <button class="clear" onclick={clearDrawing} disabled={!strokes.length}>Clear</button>
     </div>
